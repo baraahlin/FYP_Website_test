@@ -52,10 +52,12 @@
             return R * c; // Distance in km
         }
 
-        const POSITION_BUFFER_SIZE = 10; // Number of recent positions to keep
-        const MIN_TIME_INTERVAL = 1000; // Minimum time in ms between updates
+        const MIN_DISTANCE_THRESHOLD = 0.01; // Minimum distance in km to consider a valid movement
+        const EMA_ALPHA = 0.2; // Exponential moving average factor for smoothing speed
+        const MIN_TIME_INTERVAL = 2000; // Minimum time in ms between updates
 
         let positionBuffer = [];
+        let emaSpeed = 0;
         let map = null;
         let marker = null;
 
@@ -95,11 +97,16 @@
 
             const timeDiff = (last.time - first.time) / 1000; // in seconds
 
-            if (distance > 0.01) {
-                return (distance / timeDiff) * 3600; // km/h
-            } else {
-                return 0;
+            if (distance < MIN_DISTANCE_THRESHOLD) {
+                return 0; // Ignore small movements
             }
+
+            const rawSpeed = (distance / timeDiff) * 3600; // km/h
+
+            // Apply exponential moving average to smooth speed
+            emaSpeed = EMA_ALPHA * rawSpeed + (1 - EMA_ALPHA) * emaSpeed;
+
+            return emaSpeed;
         }
 
         function startTracking() {
@@ -109,10 +116,20 @@
                         const { latitude, longitude } = position.coords;
                         const currentTime = new Date().getTime();
 
+                        // Ensure consistent time interval
+                        if (positionBuffer.length > 0) {
+                            const last = positionBuffer[positionBuffer.length - 1];
+                            const timeDiff = currentTime - last.time;
+
+                            if (timeDiff < MIN_TIME_INTERVAL) {
+                                return; // Skip if interval is too short
+                            }
+                        }
+
                         positionBuffer.push({ latitude, longitude, time: currentTime });
 
-                        // Keep only the last POSITION_BUFFER_SIZE points
-                        if (positionBuffer.length > POSITION_BUFFER_SIZE) {
+                        // Keep only the last 10 positions
+                        if (positionBuffer.length > 10) {
                             positionBuffer.shift(); // Remove the oldest position
                         }
 
@@ -122,7 +139,6 @@
                         document.getElementById('speed').innerText = `Current Speed: ${speed.toFixed(2)} km/h`;
 
                         document.getElementById('location').innerText = `Latitude: ${latitude}, Longitude: ${longitude}`;
-
                     },
                     (error) => {
                         console.error('Error obtaining geolocation:', error);
