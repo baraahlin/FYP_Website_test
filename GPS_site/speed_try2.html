@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Speed Calculator</title>
+    <script>
+        function haversine(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const toRadians = (degree) => (degree * Math.PI) / 180;
+
+            const dLat = toRadians(lat2 - lat1);
+            const dLon = toRadians(lon2 - lon1);
+
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            return R * c; // Distance in km
+        }
+
+        const MIN_DISTANCE_THRESHOLD = 0.01; // Minimum distance in km
+        const MIN_TIME_INTERVAL = 2000; // Minimum time in ms
+
+        let lastPosition = null;
+        let lastTime = null;
+
+        function startTracking() {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        const currentTime = new Date().getTime();
+
+                        if (lastPosition && lastTime) {
+                            const distance = haversine(
+                                lastPosition.latitude,
+                                lastPosition.longitude,
+                                latitude,
+                                longitude
+                            );
+                            const timeDiff = (currentTime - lastTime) / 1000; // in seconds
+
+                            if (distance > MIN_DISTANCE_THRESHOLD && timeDiff > MIN_TIME_INTERVAL / 1000) {
+                                const speed = (distance / timeDiff) * 3600; // km/h
+                                document.getElementById('speed').innerText = `Current Speed: ${speed.toFixed(2)} km/h`;
+                            }
+                        }
+
+                        lastPosition = { latitude, longitude };
+                        lastTime = currentTime;
+                    },
+                    (error) => {
+                        console.error('Error with geolocation:', error);
+                        document.getElementById('speed').innerText = 'Error obtaining geolocation data';
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000, // Adjust if needed
+                        maximumAge: 0,
+                    }
+                );
+            } else {
+                console.error('Geolocation is not supported by this browser.');
+                document.getElementById('speed').innerText = 'Geolocation not supported';
+            }
+        }
+    </script>
+</head>
+<body onload="startTracking()">
+    <h1>Speed Calculator</h1>
+    <div id="speed">Getting speed data...</div>
+</body>
+</html>
