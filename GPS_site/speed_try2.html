@@ -17,9 +17,6 @@
             return R * c; // Distance in km
         }
 
-        const MIN_DISTANCE_THRESHOLD = 0.01; // Minimum distance in km
-        const MIN_TIME_INTERVAL = 2000; // Minimum time in ms
-
         let lastPosition = null;
         let lastTime = null;
 
@@ -28,6 +25,9 @@
                 navigator.geolocation.watchPosition(
                     (position) => {
                         const { latitude, longitude } = position.coords;
+                        console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
+                        document.getElementById('location').innerText = `Latitude: ${latitude}, Longitude: ${longitude}`;
+
                         const currentTime = new Date().getTime();
 
                         if (lastPosition && lastTime) {
@@ -39,7 +39,7 @@
                             );
                             const timeDiff = (currentTime - lastTime) / 1000; // in seconds
 
-                            if (distance > MIN_DISTANCE_THRESHOLD && timeDiff > MIN_TIME_INTERVAL / 1000) {
+                            if (distance > 0.01) { // Minimum distance threshold to avoid noise
                                 const speed = (distance / timeDiff) * 3600; // km/h
                                 document.getElementById('speed').innerText = `Current Speed: ${speed.toFixed(2)} km/h`;
                             }
@@ -49,7 +49,7 @@
                         lastTime = currentTime;
                     },
                     (error) => {
-                        console.error('Error with geolocation:', error);
+                        console.error('Error obtaining geolocation:', error);
                         document.getElementById('speed').innerText = 'Error obtaining geolocation data';
                     },
                     {
@@ -68,5 +68,6 @@
 <body onload="startTracking()">
     <h1>Speed Calculator</h1>
     <div id="speed">Getting speed data...</div>
+    <div id="location">Fetching location...</div>
 </body>
 </html>
