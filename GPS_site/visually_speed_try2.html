@@ -44,7 +44,7 @@
             const toRadians = (degree) => (degree * Math.PI) / 180;
 
             const dLat = toRadians(lat2 - lat1);
-            const dLon = toRadians(lon2 - lat1);
+            const dLon = toRadians(lat2 - lon1);
 
             const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
@@ -52,8 +52,10 @@
             return R * c; // Distance in km
         }
 
-        let lastPosition = null;
-        let lastTime = null;
+        const POSITION_BUFFER_SIZE = 10; // Number of recent positions to keep
+        const MIN_TIME_INTERVAL = 1000; // Minimum time in ms between updates
+
+        let positionBuffer = [];
         let map = null;
         let marker = null;
 
@@ -76,37 +78,51 @@
             }
         }
 
+        function calculateSpeed() {
+            if (positionBuffer.length < 2) {
+                return 0; // Not enough data to calculate speed
+            }
+
+            const first = positionBuffer[0];
+            const last = positionBuffer[positionBuffer.length - 1];
+
+            const distance = haversine(
+                first.latitude,
+                first.longitude,
+                last.latitude,
+                last.longitude
+            );
+
+            const timeDiff = (last.time - first.time) / 1000; // in seconds
+
+            if (distance > 0.01) {
+                return (distance / timeDiff) * 3600; // km/h
+            } else {
+                return 0;
+            }
+        }
+
         function startTracking() {
             if (navigator.geolocation) {
                 navigator.geolocation.watchPosition(
                     (position) => {
                         const { latitude, longitude } = position.coords;
-                        console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
-
-                        updateLocation(latitude, longitude);
-                        document.getElementById('location').innerText = `Latitude: ${latitude}, Longitude: ${longitude}`;
-
                         const currentTime = new Date().getTime();
 
-                        if (lastPosition && lastTime) {
-                            const distance = haversine(
-                                lastPosition.latitude,
-                                lastPosition.longitude,
-                                latitude,
-                                longitude
-                            );
-                            const timeDiff = (currentTime - lastTime) / 1000; // in seconds
+                        positionBuffer.push({ latitude, longitude, time: currentTime });
 
-                            if (distance > 0.01) {
-                                const speed = (distance / timeDiff) * 3600; // km/h
-                                document.getElementById('speed').innerText = `Current Speed: ${speed.toFixed(2)} km/h`;
-                            } else {
-                                document.getElementById('speed').innerText = `Current Speed: 0 km/h`;
-                            }
+                        // Keep only the last POSITION_BUFFER_SIZE points
+                        if (positionBuffer.length > POSITION_BUFFER_SIZE) {
+                            positionBuffer.shift(); // Remove the oldest position
                         }
 
-                        lastPosition = { latitude, longitude };
-                        lastTime = currentTime;
+                        updateLocation(latitude, longitude);
+
+                        const speed = calculateSpeed();
+                        document.getElementById('speed').innerText = `Current Speed: ${speed.toFixed(2)} km/h`;
+
+                        document.getElementById('location').innerText = `Latitude: ${latitude}, Longitude: ${longitude}`;
+
                     },
                     (error) => {
                         console.error('Error obtaining geolocation:', error);
@@ -114,7 +130,7 @@
                     },
                     {
                         enableHighAccuracy: true,
-                        timeout: 10000, // Adjust if needed
+                        timeout: 10000,
                         maximumAge: 0,
                     }
                 );
